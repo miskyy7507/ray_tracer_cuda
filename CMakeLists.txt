@@ -10,7 +10,11 @@ add_executable(ray_tracer_cuda main.cu
         export_framebuffer_to_bitmap.h
         Ray.cu
         Ray.cuh
-        Hittable.cuh)
+        Hittable.cuh
+        Sphere.cu
+        Sphere.cuh
+        HittableList.cu
+        HittableList.cuh)
 
 set_target_properties(ray_tracer_cuda PROPERTIES
                       CUDA_SEPARABLE_COMPILATION ON)
