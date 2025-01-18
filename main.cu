@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <cfloat>
+#include <curand_kernel.h>
 
 #include "Vector3.cuh"
 #include "Ray.cuh"
@@ -59,23 +60,47 @@ __device__ Vector3 get_ray_color(const Ray& r, Hittable** world) {
     return (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
 }
 
+__global__ void render_init(int width, int height, curandState *rand_state) {
+    unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
+    unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x >= width || y >= height) return;
+    unsigned int pixel_index = y * width + x;
+
+    curand_init(2137, pixel_index, 0, &rand_state[pixel_index]);
+}
+
 __global__ void render(Vector3 *fb, unsigned int width, unsigned int height,
-    Vector3 pixel_delta_x, Vector3 pixel_delta_y, Vector3 viewport_upper_left_pixel_center, Vector3 cam_center, Hittable** world) {
+    Vector3 pixel_delta_x, Vector3 pixel_delta_y, Vector3 viewport_upper_left_pixel_center, Vector3 cam_center, Hittable** world, const curandState *rand_state, int num_samples = 512) {
 
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= width || y >= height) return;
 
     unsigned int pixel_index = y * width + x;
+    curandState local_random_state = rand_state[pixel_index];
 
+    // Vector3 pixel_sample = viewport_upper_left_pixel_center + (pixel_delta_x * x) + (pixel_delta_y * y);
+    // auto ray_dir = pixel_center - cam_center;
 
-    auto pixel_center = viewport_upper_left_pixel_center + (pixel_delta_x * x) + (pixel_delta_y * y);
-    auto ray_dir = pixel_center - cam_center;
+    // auto r = Ray(cam_center, ray_dir);
+    // auto color = get_ray_color(r, world);
 
-    auto r = Ray(cam_center, ray_dir);
-    auto color = get_ray_color(r, world);
+    Vector3 pixel_color = Vector3();
+    for (int i = 0; i < num_samples; i++) {
+        float random_delta_x = curand_uniform(&local_random_state) - 0.5f;
+        float random_delta_y = curand_uniform(&local_random_state) - 0.5f;
 
-    fb[pixel_index] = color;
+        Vector3 pixel_sample = viewport_upper_left_pixel_center
+            + pixel_delta_x * (x + random_delta_x)
+            + pixel_delta_y * (y + random_delta_y);
+
+        auto ray_dir = pixel_sample - cam_center;
+
+        auto r = Ray(cam_center, ray_dir);
+        pixel_color = pixel_color + get_ray_color(r, world);
+    }
+
+    fb[pixel_index] = pixel_color / num_samples;
 }
 
 __global__ void create_world(Hittable** list, Hittable** world) {
@@ -138,6 +163,10 @@ int main() {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
+    // stan cuRAND (generator liczb pseudolosowych)
+    curandState *rand_state_device;
+    checkCudaErrors(cudaMalloc(&rand_state_device, fb_size * sizeof(curandState)));
+
     int block_x_size = 8;
     int block_y_size = 8;
 
@@ -147,7 +176,11 @@ int main() {
         static_cast<int>(std::ceil(static_cast<float>(image_height) / block_y_size))
     );
 
-    render<<<blocks_per_grid, threads_per_block>>>(fb_device, image_width, image_height, pixel_delta_x, pixel_delta_y, viewport_upper_left_pixel_center ,camera_center, world_device);
+    render_init<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, rand_state_device);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    render<<<blocks_per_grid, threads_per_block>>>(fb_device, image_width, image_height, pixel_delta_x, pixel_delta_y, viewport_upper_left_pixel_center ,camera_center, world_device, rand_state_device);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
