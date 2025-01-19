@@ -1,0 +1,1 @@
+# Śledzenie promieni akcelerowane sprzętowo za pomocą NVIDIA CUDA
