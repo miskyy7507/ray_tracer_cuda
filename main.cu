@@ -22,25 +22,6 @@ void cuda_err_chk(cudaError_t code, const char* const func, const char* const fi
     }
 }
 
-__device__ float hit_sphere(const Vector3& center, const float radius, const Ray& ray) {
-    Vector3 oc = center - ray.origin(); // co to jest?
-
-    float a = ray.direction().dot(ray.direction());
-    // float b = -2.0f * ray.direction().dot(oc);
-    float h = ray.direction().dot(oc);
-    float c = oc.dot(oc) - radius * radius;
-
-    // float discriminant = b*b - 4*a*c;
-    float discriminant = h*h - a*c;
-
-    if (discriminant < 0) {
-        return -1.0f;
-    } else {
-        // return (-b - sqrtf(discriminant) ) / (2.0f*a);
-        return (h - sqrtf(discriminant)) / a;
-    }
-}
-
 __device__ Vector3 get_ray_color(const Ray& r, Hittable** world) {
     // Vector3 sphere_center = Vector3(0.0f, 0.0f, -1.0f);
     // float sphere_radius = 0.5f;
@@ -120,7 +101,6 @@ __global__ void delete_world(Hittable** list, const size_t l, Hittable** world) 
 
 
 int main() {
-    // int image_height = 2880;
     int image_height = 720;
     float aspect_ratio = 16.0 / 9.0;
     int image_width =  aspect_ratio * image_height;
@@ -195,6 +175,7 @@ int main() {
     checkCudaErrors(cudaFree(fb_device));
     checkCudaErrors(cudaFree(list_device));
     checkCudaErrors(cudaFree(world_device));
+    checkCudaErrors(cudaFree(rand_state_device));
     checkCudaErrors(cudaDeviceSynchronize());
 
     export_framebuffer_to_bitmap(fb_host, image_width, image_height, "image.bmp");
