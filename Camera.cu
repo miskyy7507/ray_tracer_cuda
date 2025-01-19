@@ -60,16 +60,16 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
 
     for (int i = 0; i < depth; i++) {
         HitRecord rec;
-        if ((*this->world)->hit(current_ray, 0.0001, RTCuda::INF, rec)) {
+        if ((*this->world)->hit(current_ray, 0.0001f, RTCuda::INF, rec)) {
             // return (rec.normal + Vector3(1.0f, 1.0f, 1.0f)) * 0.5f;
             Vector3 dir = Vector3::random_unit_vector(local_random_state);
-            dir = rec.normal.dot(r.direction()) > 0.0 ? dir : -dir;
+            dir = rec.normal.dot(current_ray.direction()) > 0.0f ? dir : -dir;
             current_attenuation *= 0.5f;
             current_ray = Ray(rec.point, dir);
         } else {
-            auto unit_dir = r.direction().normalized();
+            auto unit_dir = current_ray.direction().normalized();
             float a = 0.5f * (unit_dir.y + 1.0f);
-            Vector3 c(Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
+            Vector3 c = (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
             return c * current_attenuation;
         }
     }
