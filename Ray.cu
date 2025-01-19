@@ -1,7 +1,3 @@
-//
-// Created by miskyy on 11.01.25.
-//
-
 #include "Ray.cuh"
 
 __device__ Ray::Ray() : orig(Vector3()), dir(Vector3()) {} // todo: see if without initializer list is faster

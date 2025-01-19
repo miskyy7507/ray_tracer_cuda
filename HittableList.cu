@@ -1,7 +1,3 @@
-//
-// Created by miskyy on 15.01.25.
-//
-
 #include "HittableList.cuh"
 
 __device__ HittableList::HittableList(Hittable **l, const size_t n): objects(l), length(n) {}
