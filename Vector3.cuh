@@ -1,5 +1,6 @@
 #ifndef VECTOR3_CUH
 #define VECTOR3_CUH
+#include <curand_kernel.h>
 
 class Vector3 {
 public:
@@ -44,6 +45,18 @@ public:
 
     // wektor znormalizowany (o długości 1)
     __device__ __host__ Vector3 normalized() const;
+
+    // Wektor o losowych punktach x, y, z w przedziale (0.0, 1.0).
+    __device__ static Vector3 random(curandState* local_random_state);
+
+    // Wektor o losowych punktach x, y, z w przedziale (min, max).
+    __device__ static Vector3 random(float min, float max, curandState* local_random_state);
+
+    // Funkcja zwracająca nowy wektor o znormalizowanej długości w losowym kierunku.
+    // Tzn. wektor na powierzchni sfery o promieniu 1.
+    __device__ static Vector3 random_unit_vector_old(curandState* local_random_state);
+
+    __device__ static Vector3 random_unit_vector(curandState* local_random_state);
 };
 
 #endif //VECTOR3_CUH

@@ -11,7 +11,7 @@ __host__ __device__ Camera::Camera(
 {
     this->image_width = aspect_ratio * image_height;
 
-    this->sample_count = 128;
+    this->sample_count = 256;
 
     float focal_length = 1.0f;
     float viewport_height = 2.0f;
@@ -48,19 +48,31 @@ __device__ Vector3 Camera::render_pixel(int x, int y) {
         auto ray_dir = pixel_sample - this->camera_center;
 
         auto r = Ray(this->camera_center, ray_dir);
-        pixel_color = pixel_color + get_ray_color(r);
+        pixel_color = pixel_color + get_ray_color(r, 50, local_random_state);
     }
 
     return pixel_color / sample_count;
 }
 
-__device__ Vector3 Camera::get_ray_color(Ray& r) {
-    HitRecord rec;
-    if ((*this->world)->hit(r, 0.0, RTCuda::INF, rec)) {
-        return (rec.normal + Vector3(1.0f, 1.0f, 1.0f)) * 0.5f;
+__device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* local_random_state) {
+    Ray current_ray = r;
+    float current_attenuation = 1.0f;
+
+    for (int i = 0; i < depth; i++) {
+        HitRecord rec;
+        if ((*this->world)->hit(current_ray, 0.0001, RTCuda::INF, rec)) {
+            // return (rec.normal + Vector3(1.0f, 1.0f, 1.0f)) * 0.5f;
+            Vector3 dir = Vector3::random_unit_vector(local_random_state);
+            dir = rec.normal.dot(r.direction()) > 0.0 ? dir : -dir;
+            current_attenuation *= 0.5f;
+            current_ray = Ray(rec.point, dir);
+        } else {
+            auto unit_dir = r.direction().normalized();
+            float a = 0.5f * (unit_dir.y + 1.0f);
+            Vector3 c(Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
+            return c * current_attenuation;
+        }
     }
 
-    auto unit_dir = r.direction().normalized();
-    float a = 0.5f * (unit_dir.y + 1.0f);
-    return (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
+    return Vector3(0.0f, 0.0f, 0.0f); // przekroczono głębokość rekursji
 }

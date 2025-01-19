@@ -17,7 +17,7 @@ public:
     __device__ Vector3 render_pixel(int x, int y);
 
 private:
-    __device__ Vector3 get_ray_color(Ray& r);
+    __device__ Vector3 get_ray_color(const Ray& r, int depth, curandState* local_random_state);
 
     int image_width, image_height;
     int sample_count;                           // ilość próbek na jeden piksel
