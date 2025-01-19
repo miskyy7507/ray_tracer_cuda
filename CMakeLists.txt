@@ -14,7 +14,10 @@ add_executable(ray_tracer_cuda main.cu
         Sphere.cu
         Sphere.cuh
         HittableList.cu
-        HittableList.cuh)
+        HittableList.cuh
+        Camera.cu
+        Camera.cuh
+        rtcuda.h)
 
 set_target_properties(ray_tracer_cuda PROPERTIES
                       CUDA_SEPARABLE_COMPILATION ON)
