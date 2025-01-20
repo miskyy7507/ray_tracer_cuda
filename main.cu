@@ -59,6 +59,18 @@ __global__ void render(unsigned int width, unsigned int height, Camera* camera, 
     buffer[x + y * width] = camera->render_pixel(x, y);
 }
 
+__global__ void gamma_2_correction(unsigned int width, unsigned int height, Vector3* buffer) {
+    unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= width || y >= height) return;
+
+    unsigned int pixel_index = x + y * width;
+
+    buffer[pixel_index].x = sqrtf(buffer[pixel_index].x);
+    buffer[pixel_index].y = sqrtf(buffer[pixel_index].y);
+    buffer[pixel_index].z = sqrtf(buffer[pixel_index].z);
+}
+
 
 int main() {
     int image_height = 720;
@@ -107,6 +119,10 @@ int main() {
     checkCudaErrors(cudaMemcpy(d_cam, &camera, sizeof(Camera), cudaMemcpyHostToDevice));
 
     render<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_cam, d_buffer);
+    checkCudaErrors(cudaGetLastError());
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    gamma_2_correction<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_buffer);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
