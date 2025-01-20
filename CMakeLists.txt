@@ -20,7 +20,9 @@ add_executable(ray_tracer_cuda main.cu
         rtcuda.h
         Material.cuh
         Matte.cu
-        Matte.cuh)
+        Matte.cuh
+        Metal.cu
+        Metal.cuh)
 
 set_target_properties(ray_tracer_cuda PROPERTIES
                       CUDA_SEPARABLE_COMPILATION ON)

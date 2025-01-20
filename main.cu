@@ -11,6 +11,7 @@
 #include "Hittable.cuh"
 #include "HittableList.cuh"
 #include "Matte.cuh"
+#include "Metal.cuh"
 #include "Sphere.cuh"
 
 
@@ -41,12 +42,17 @@ __global__ void create_world(
     Hittable** world
 ) {
     if (threadIdx.x != 0 || blockIdx.x != 0) return;
-    material_list[0] = new Matte(Vector3(0.5f, 0.5f, 0.5f));
-    material_list[1] = new Matte(Vector3(0.2f, 0.5f, 0.8f));
+    material_list[0] = new Matte(Vector3(0.7f, 0.7f, 0.7f));            // ziemia
+    material_list[1] = new Matte(Vector3(0.1f, 0.2f, 0.5f));            // środkowy
+    material_list[2] = new Metal(Vector3(0.8f, 0.8f, 0.8f), 0.0f); // lewy
+    material_list[3] = new Metal(Vector3(0.8f, 0.6f, 0.2f), 0.0f); // prawy
 
-    hittable_list[0] = new Sphere(Vector3(0.0f, 0.0f, -1.0f), 0.5f, material_list[1]);
-    hittable_list[1] = new Sphere(Vector3(0.0f, -100.5f, 1.0f), 100.f, material_list[0]);
-    *world = new HittableList(hittable_list, 2);
+    hittable_list[0] = new Sphere(Vector3(0.0f, -100.5f, -1.0f), 100.0f, material_list[0]); // ziemia
+    hittable_list[1] = new Sphere(Vector3(0.0f, 0.0f, -1.2f), 0.5f, material_list[1]);      // środkowy
+    hittable_list[2] = new Sphere(Vector3(-1.0f, 0.0f, -1.0f), 0.5f, material_list[2]);     // lewy
+    hittable_list[3] = new Sphere(Vector3(1.0f, 0.0f, -1.0f), 0.5f, material_list[3]);      // prawy
+
+    *world = new HittableList(hittable_list, hittable_list_size);
 }
 
 __global__ void destroy_world(
@@ -109,11 +115,11 @@ int main() {
     checkCudaErrors(cudaMalloc(&d_buffer, sizeof(Vector3) * buffer_size));
     checkCudaErrors(cudaDeviceSynchronize());
 
-    constexpr size_t hittable_list_size = 2;
+    constexpr size_t hittable_list_size = 4;
     Hittable** d_hitlist;
     checkCudaErrors(cudaMalloc(&d_hitlist, sizeof(Hittable*) * hittable_list_size));
     checkCudaErrors(cudaDeviceSynchronize());
-    constexpr size_t material_list_size = 2;
+    constexpr size_t material_list_size = 4;
     Material** d_material_list;
     checkCudaErrors(cudaMalloc(&d_material_list, sizeof(Material*) * material_list_size));
     checkCudaErrors(cudaDeviceSynchronize());

@@ -57,6 +57,8 @@ public:
     __device__ static Vector3 random_unit_vector_old(curandState* local_random_state);
 
     __device__ static Vector3 random_unit_vector(curandState* local_random_state);
+
+    __device__ Vector3 reflect(const Vector3& normal) const;
 };
 
 #endif //VECTOR3_CUH

@@ -91,3 +91,7 @@ __device__ Vector3 Vector3::random_unit_vector(curandState* local_random_state) 
         c * sinf(theta),
     };
 }
+
+__device__ Vector3 Vector3::reflect(const Vector3 &normal) const {
+    return *this - normal * this->dot(normal) * 2.0f;
+}

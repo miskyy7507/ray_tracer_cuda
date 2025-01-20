@@ -67,9 +67,14 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
             // current_ray = Ray(rec.point, dir);
             Ray scattered;
             Vector3 attenuate;
-            rec.material->scatter(current_ray, rec, attenuate, scattered, local_random_state);
-            current_attenuation = current_attenuation * attenuate;
-            current_ray = scattered;
+            if (rec.material->scatter(current_ray, rec, attenuate, scattered, local_random_state)) {
+                current_attenuation = current_attenuation * attenuate;
+                current_ray = scattered;
+            } else {
+                return Vector3(0.0f, 0.0f, 0.0f);
+            }
+
+
         } else {
             auto unit_dir = current_ray.direction().normalized();
             float a = 0.5f * (unit_dir.y + 1.0f);
