@@ -6,13 +6,14 @@
 
 class Sphere: public Hittable {
 public:
-    __device__ Sphere(const Vector3& _center, float _radius);
+    __device__ Sphere(const Vector3& _center, float _radius, Material* _material);
 
     __device__ bool hit(const Ray &r, float t_min, float t_max, HitRecord &rec) const override;
 
 private:
     Vector3 center;
     float radius;
+    Material* material;
 };
 
 #endif //SPHERE_CUH

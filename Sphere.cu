@@ -1,6 +1,7 @@
 #include "Sphere.cuh"
 
-__device__ Sphere::Sphere(const Vector3 &_center, float _radius) : center(_center), radius(_radius) {}
+__device__ Sphere::Sphere(const Vector3 &_center, float _radius, Material* _material)
+    : center(_center), radius(_radius), material(_material) {}
 
 __device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &rec) const {
     Vector3 oc = center - r.origin(); // co to jest?
@@ -38,6 +39,7 @@ __device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &r
 
     rec.point = r.point_at(root);
     rec.normal = (rec.point - center) / radius;
+    rec.material = material;
     rec.t = root;
 
     return true;

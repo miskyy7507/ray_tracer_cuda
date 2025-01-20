@@ -4,9 +4,13 @@
 #include "Ray.cuh"
 #include "Vector3.cuh"
 
-struct HitRecord {
+class Material;
+
+class HitRecord {
+public:
     Vector3 point;
     Vector3 normal;
+    Material* material;
     float t;
 };
 

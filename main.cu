@@ -10,6 +10,7 @@
 #include "export_framebuffer_to_bitmap.h"
 #include "Hittable.cuh"
 #include "HittableList.cuh"
+#include "Matte.cuh"
 #include "Sphere.cuh"
 
 
@@ -33,20 +34,34 @@ __global__ void random_state_init(int width, int height, curandState *rand_state
 }
 
 __global__ void create_world(
-    const size_t list_size,
-    Hittable** list,
+    const size_t hittable_list_size,
+    Hittable** hittable_list,
+    const size_t material_list_size,
+    Material** material_list,
     Hittable** world
-    ) {
+) {
     if (threadIdx.x != 0 || blockIdx.x != 0) return;
-    list[0] = new Sphere(Vector3(0.0f, 0.0f, -1.0f), 0.5f);
-    list[1] = new Sphere(Vector3(0.0f, -100.5f, 1.0f), 100.f);
-    *world = new HittableList(list, 2);
+    material_list[0] = new Matte(Vector3(0.5f, 0.5f, 0.5f));
+    material_list[1] = new Matte(Vector3(0.2f, 0.5f, 0.8f));
+
+    hittable_list[0] = new Sphere(Vector3(0.0f, 0.0f, -1.0f), 0.5f, material_list[1]);
+    hittable_list[1] = new Sphere(Vector3(0.0f, -100.5f, 1.0f), 100.f, material_list[0]);
+    *world = new HittableList(hittable_list, 2);
 }
 
-__global__ void destroy_world(const size_t list_size, Hittable** list, Hittable** world) {
+__global__ void destroy_world(
+    const size_t hittable_list_size,
+    Hittable** hittable_list,
+    const size_t material_list_size,
+    Material** material_list,
+    Hittable** world
+) {
     if (threadIdx.x != 0 || blockIdx.x != 0) return;
-    for (size_t i = 0; i < list_size; i++) {
-        delete list[i];
+    for (size_t i = 0; i < hittable_list_size; i++) {
+        delete hittable_list[i];
+    }
+    for (size_t i = 0; i < material_list_size; i++) {
+        delete material_list[i];
     }
     delete *world;
 }
@@ -94,14 +109,18 @@ int main() {
     checkCudaErrors(cudaMalloc(&d_buffer, sizeof(Vector3) * buffer_size));
     checkCudaErrors(cudaDeviceSynchronize());
 
-    constexpr size_t list_size = 2;
+    constexpr size_t hittable_list_size = 2;
     Hittable** d_hitlist;
-    checkCudaErrors(cudaMalloc(&d_hitlist, sizeof(Hittable*) * list_size));
+    checkCudaErrors(cudaMalloc(&d_hitlist, sizeof(Hittable*) * hittable_list_size));
+    checkCudaErrors(cudaDeviceSynchronize());
+    constexpr size_t material_list_size = 2;
+    Material** d_material_list;
+    checkCudaErrors(cudaMalloc(&d_material_list, sizeof(Material*) * material_list_size));
     checkCudaErrors(cudaDeviceSynchronize());
     Hittable** d_world;
     checkCudaErrors(cudaMalloc(&d_world, sizeof(Hittable*)));
     checkCudaErrors(cudaDeviceSynchronize());
-    create_world<<<1,1>>>(list_size, d_hitlist, d_world);
+    create_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
@@ -131,12 +150,13 @@ int main() {
     checkCudaErrors(cudaDeviceSynchronize());
 
     // zwolnienie pamięci GPU
-    destroy_world<<<1,1>>>(list_size, d_hitlist, d_world);
+    destroy_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
     checkCudaErrors(cudaFree(d_cam));
     checkCudaErrors(cudaFree(d_buffer));
+    checkCudaErrors(cudaFree(d_material_list));
     checkCudaErrors(cudaFree(d_hitlist));
     checkCudaErrors(cudaFree(d_world));
     checkCudaErrors(cudaFree(d_random_state));

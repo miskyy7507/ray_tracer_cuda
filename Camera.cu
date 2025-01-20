@@ -1,5 +1,6 @@
 #include "Camera.cuh"
 
+#include "Material.cuh"
 #include "rtcuda.h"
 
 __host__ __device__ Camera::Camera(
@@ -56,14 +57,19 @@ __device__ Vector3 Camera::render_pixel(int x, int y) {
 
 __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* local_random_state) {
     Ray current_ray = r;
-    float current_attenuation = 1.0f;
+    Vector3 current_attenuation = Vector3(1.0f, 1.0f, 1.0f);
 
     for (int i = 0; i < depth; i++) {
         HitRecord rec;
         if ((*this->world)->hit(current_ray, 0.0001f, RTCuda::INF, rec)) {
-            Vector3 dir = Vector3::random_unit_vector(local_random_state) + rec.normal;
-            current_attenuation *= 0.5f;
-            current_ray = Ray(rec.point, dir);
+            // Vector3 dir = Vector3::random_unit_vector(local_random_state) + rec.normal;
+            // current_attenuation *= 0.5f;
+            // current_ray = Ray(rec.point, dir);
+            Ray scattered;
+            Vector3 attenuate;
+            rec.material->scatter(current_ray, rec, attenuate, scattered, local_random_state);
+            current_attenuation = current_attenuation * attenuate;
+            current_ray = scattered;
         } else {
             auto unit_dir = current_ray.direction().normalized();
             float a = 0.5f * (unit_dir.y + 1.0f);
