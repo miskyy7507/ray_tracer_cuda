@@ -7,6 +7,8 @@ __host__ __device__ Camera::Camera(
     const int _image_height,
     const float _aspect_ratio,
     float _vfov_deg,
+    Vector3 look_from,
+    Vector3 look_at,
     Hittable** _world,
     curandState* _curand_state
 ) : image_height(_image_height), aspect_ratio(_aspect_ratio), world(_world), curand_state(_curand_state)
@@ -17,21 +19,32 @@ __host__ __device__ Camera::Camera(
 
     float vfov_rad = _vfov_deg * (RTCuda::PI / 180);
 
-    float focal_length = 1.0f;
+    // float focal_length = 1.0f;
+    float focal_length = (look_from - look_at).length();
     float h = tanf(vfov_rad/2);
     float viewport_height = 2.0f * h * focal_length;
     float viewport_width = viewport_height * image_width / image_height;
-    this->camera_center = Vector3(); // 0,0,0
+    // this->camera_center = Vector3(); // 0,0,0
+    // this->camera_center = Vector3(13,2,3);
+    this->camera_center = look_from;
+
+    Vector3 vup = Vector3(0.0f, 1.0f, 0.0f);
+
+    Vector3 w = (look_from - look_at) / focal_length;
+    Vector3 u = vup.cross(w).normalized();
+    Vector3 v = w.cross(u).normalized();
 
     // wektory przebiegające wzdłuż szerokości i wysokości viewportu
-    auto viewport_x = Vector3(viewport_width, 0.0f, 0.0f);
-    auto viewport_y = Vector3(0.0f, -viewport_height, 0.0f);
+    // auto viewport_x = Vector3(viewport_width, 0.0f, 0.0f);
+    auto viewport_x = u * viewport_width;
+    // auto viewport_y = Vector3(0.0f, -viewport_height, 0.0f);
+    auto viewport_y = -v * viewport_height;
 
     this->pixel_delta_x = viewport_x / image_width;
     this->pixel_delta_y = viewport_y / image_height;
 
     auto viewport_upper_left_corner = camera_center
-        - Vector3(0.0f, 0.0f, focal_length)
+        - (w * focal_length)
         - viewport_x/2.0f - viewport_y/2.0f;
     this->viewport_upper_left_pixel_center =
         viewport_upper_left_corner + (pixel_delta_x + pixel_delta_y) * 0.5f;
