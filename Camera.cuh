@@ -10,6 +10,7 @@ public:
     __host__ __device__  Camera(
         int _image_height,
         float _aspect_ratio,
+        float _vfov_deg,
         Hittable** _world,
         curandState* _curand_state
     );

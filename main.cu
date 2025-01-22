@@ -97,6 +97,7 @@ int main() {
     int image_height = 720;
     float aspect_ratio = 16.0 / 9.0;
     int image_width =  aspect_ratio * image_height;
+    int field_of_view = 60; // pole widzenia wertykalne w kątach
 
     int buffer_size = image_height * image_width;
 
@@ -140,7 +141,7 @@ int main() {
 
     Camera* d_cam;
     checkCudaErrors(cudaMalloc(&d_cam, sizeof(Camera)));
-    auto camera = Camera(image_height, aspect_ratio, d_world, d_random_state);
+    auto camera = Camera(image_height, aspect_ratio, field_of_view, d_world, d_random_state);
     checkCudaErrors(cudaMemcpy(d_cam, &camera, sizeof(Camera), cudaMemcpyHostToDevice));
 
     render<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_cam, d_buffer);
