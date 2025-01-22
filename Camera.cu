@@ -7,15 +7,14 @@ __host__ __device__ Camera::Camera(
     const int _image_height,
     const float _aspect_ratio,
     float _vfov_deg,
+    int _sample_count,
     Vector3 look_from,
     Vector3 look_at,
     Hittable** _world,
     curandState* _curand_state
-) : image_height(_image_height), aspect_ratio(_aspect_ratio), world(_world), curand_state(_curand_state)
+) : image_height(_image_height), sample_count(_sample_count), aspect_ratio(_aspect_ratio), world(_world), curand_state(_curand_state)
 {
     this->image_width = aspect_ratio * image_height;
-
-    this->sample_count = 256;
 
     float vfov_rad = _vfov_deg * (RTCuda::PI / 180);
 

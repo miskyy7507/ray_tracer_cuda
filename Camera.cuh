@@ -11,6 +11,7 @@ public:
         int _image_height,
         float _aspect_ratio,
         float _vfov_deg,
+        int _sample_count,
         Vector3 look_from,
         Vector3 look_at,
         Hittable** _world,
