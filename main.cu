@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <cfloat>
 #include <curand_kernel.h>
 
 #include "Camera.cuh"
@@ -48,7 +47,7 @@ __global__ void create_world(
 
     curandState local_random_state;
 
-    curand_init(2137, 0, 0, &local_random_state);
+    curand_init(1984, 0, 0, &local_random_state);
 
     // ziemia
     material_list[material_list_index] = new Matte(Vector3(0.5f, 0.5f, 0.5f));
@@ -60,15 +59,21 @@ __global__ void create_world(
     for (int a = -11; a < 11; a++) {
         for (int b = -11; b < 11; b++) {
             float mat_choice = curand_uniform(&local_random_state);
-            Vector3 center = Vector3(0.9f*curand_uniform(&local_random_state)+a, 0.2f, 0.9f*curand_uniform(&local_random_state)+b);
-
-            Vector3 color =
-                Vector3(curand_uniform(&local_random_state), curand_uniform(&local_random_state), curand_uniform(&local_random_state)) *
-                    Vector3(curand_uniform(&local_random_state), curand_uniform(&local_random_state), curand_uniform(&local_random_state));
+            Vector3 center = Vector3(a+curand_uniform(&local_random_state), 0.2f, b+curand_uniform(&local_random_state));
             if (mat_choice < 0.8f) {
-                material_list[material_list_index] = new Matte(color);
+                material_list[material_list_index] = new Matte(Vector3(
+                curand_uniform(&local_random_state)*curand_uniform(&local_random_state),
+                curand_uniform(&local_random_state)*curand_uniform(&local_random_state),
+                curand_uniform(&local_random_state)*curand_uniform(&local_random_state)
+            ));
+            } else if (mat_choice < 0.95f) {
+                material_list[material_list_index] = new Metal(Vector3(
+                    0.5f*(1.0f+curand_uniform(&local_random_state)),
+                    0.5f*(1.0f+curand_uniform(&local_random_state)),
+                    0.5f*(1.0f+curand_uniform(&local_random_state))
+                    ), 0.5f*curand_uniform(&local_random_state));
             } else {
-                material_list[material_list_index] = new Metal(color, 0.5f*curand_uniform(&local_random_state));
+                material_list[material_list_index] = new Metal(Vector3(1.0f, 1.0f, 1.0f), 0.0f);
             }
             hittable_list[hittable_list_index] = new Sphere(center, 0.2f, material_list[material_list_index]);
 
@@ -135,14 +140,17 @@ int main() {
     int image_height = 720;
     float aspect_ratio = 16.0 / 9.0;
     int image_width =  aspect_ratio * image_height;
-    float field_of_view = 20; // pole widzenia wertykalne w kątach
+    float field_of_view = 30; // pole widzenia wertykalne w kątach
+    Vector3 look_from = Vector3(13,2,3);
+    Vector3 look_at = Vector3(0,0,0);
+    int sample_count = 128;
 
     int buffer_size = image_height * image_width;
 
     auto fb_host = std::vector<Vector3>(buffer_size);
 
-    int block_x_size = 8;
-    int block_y_size = 8;
+    constexpr int block_x_size = 8;
+    constexpr int block_y_size = 8;
     dim3 threads_per_block(block_x_size,block_y_size);
     dim3 blocks_per_grid(
         static_cast<int>(std::ceil(static_cast<float>(image_width) / block_x_size)),
@@ -150,9 +158,6 @@ int main() {
     );
 
     // alokacja pamięci gpu
-    Vector3* d_buffer;
-    checkCudaErrors(cudaMalloc(&d_buffer, sizeof(Vector3) * buffer_size));
-    checkCudaErrors(cudaDeviceSynchronize());
 
     // stan cuRAND (generator liczb pseudolosowych)
     curandState *d_random_state;
@@ -162,15 +167,16 @@ int main() {
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
+    Vector3* d_buffer;
+    checkCudaErrors(cudaMalloc(&d_buffer, sizeof(Vector3) * buffer_size));
+
     // tworzenie świata
     constexpr size_t hittable_list_size = 22*22+1+3;
     Hittable** d_hitlist;
     checkCudaErrors(cudaMalloc(&d_hitlist, sizeof(Hittable*) * hittable_list_size));
-    checkCudaErrors(cudaDeviceSynchronize());
     constexpr size_t material_list_size = 22*22+1+3;
     Material** d_material_list;
     checkCudaErrors(cudaMalloc(&d_material_list, sizeof(Material*) * material_list_size));
-    checkCudaErrors(cudaDeviceSynchronize());
     Hittable** d_world;
     checkCudaErrors(cudaMalloc(&d_world, sizeof(Hittable*)));
     checkCudaErrors(cudaDeviceSynchronize());
@@ -181,11 +187,9 @@ int main() {
     // tworzenie kamery
     Camera* d_cam;
     checkCudaErrors(cudaMalloc(&d_cam, sizeof(Camera)));
-    Vector3 look_from = Vector3(13,2,3);
-    Vector3 look_at = Vector3(0,1,0);
-    int sample_count = 128;
     auto camera = Camera(image_height, aspect_ratio, field_of_view, sample_count, look_from, look_at, d_world, d_random_state);
     checkCudaErrors(cudaMemcpy(d_cam, &camera, sizeof(Camera), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaDeviceSynchronize());
 
 
     render<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_cam, d_buffer);
@@ -212,7 +216,6 @@ int main() {
     checkCudaErrors(cudaFree(d_hitlist));
     checkCudaErrors(cudaFree(d_world));
     checkCudaErrors(cudaFree(d_random_state));
-    checkCudaErrors(cudaDeviceSynchronize());
 
     export_framebuffer_to_bitmap(fb_host, image_width, image_height, "image.bmp");
 
