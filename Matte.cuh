@@ -12,4 +12,6 @@ private:
     Vector3 color;
 };
 
+__global__ void create_matte(Vector3 color, Material **list, size_t index);
+
 #endif //MATTE_CUH

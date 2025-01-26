@@ -8,3 +8,7 @@ __device__ bool Matte::scatter(const Ray& r_in, const HitRecord& rec, Vector3& a
     attenuation = this->color;
     return true;
 }
+
+__global__ void create_matte(Vector3 color, Material **list, size_t index) {
+    list[index] = new Matte(color);
+}

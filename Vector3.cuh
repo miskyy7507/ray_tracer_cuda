@@ -9,6 +9,7 @@ public:
     // "pusty" wektor (0.0, 0.0, 0.0)
     __device__ __host__ Vector3();
     __device__ __host__ Vector3(float _x, float _y, float _z);
+    __device__ __host__ Vector3(float v[]);
 
     // wektor przeciwny
     __device__ __host__ Vector3 operator-() const;

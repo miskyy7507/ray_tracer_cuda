@@ -8,6 +8,8 @@ __device__ __host__ Vector3::Vector3() : x{0.0f}, y{0.0f}, z{0.0f} {}
 
 __device__ __host__ Vector3::Vector3(float _x, float _y, float _z) : x{_x}, y{_y}, z{_z}  {}
 
+__device__ __host__ Vector3::Vector3(float v[]) : x {v[0]}, y{v[1]}, z{v[2]} {}
+
 
 __device__ __host__ Vector3 Vector3::operator-() const {
     return {-x, -y, -z};

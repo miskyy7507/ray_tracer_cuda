@@ -16,4 +16,6 @@ private:
     Material* material;
 };
 
+__global__ void create_sphere(Vector3 center, float radius, int mat_index, Material** mat, Hittable** list, size_t index);
+
 #endif //SPHERE_CUH

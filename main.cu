@@ -1,7 +1,12 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <chrono>
+#include <fstream>
 #include <curand_kernel.h>
+
+#include "json.hpp"
+using json = nlohmann::json;
 
 #include "Camera.cuh"
 #include "Vector3.cuh"
@@ -24,7 +29,7 @@ void cuda_err_chk(cudaError_t code, const char* const func, const char* const fi
     }
 }
 
-__global__ void random_state_init(int width, int height, curandState *rand_state) {
+__global__ void random_state_init(int width, int height, curandState* rand_state) {
     unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
     if (x >= width || y >= height) return;
@@ -36,64 +41,9 @@ __global__ void random_state_init(int width, int height, curandState *rand_state
 __global__ void create_world(
     const size_t hittable_list_size,
     Hittable** hittable_list,
-    const size_t material_list_size,
-    Material** material_list,
     Hittable** world
 ) {
     if (threadIdx.x != 0 || blockIdx.x != 0) return;
-
-    unsigned int material_list_index = 0;
-    unsigned int hittable_list_index = 0;
-
-    curandState local_random_state;
-
-    curand_init(1984, 0, 0, &local_random_state);
-
-    // ziemia
-    material_list[material_list_index] = new Matte(Vector3(0.5f, 0.5f, 0.5f));
-    hittable_list[hittable_list_index] = new Sphere(Vector3(0.0f, -1000.0f, -0.0f), 1000.0f, material_list[material_list_index]);
-
-    material_list_index++;
-    hittable_list_index++;
-
-    for (int a = -11; a < 11; a++) {
-        for (int b = -11; b < 11; b++) {
-            float mat_choice = curand_uniform(&local_random_state);
-            Vector3 center = Vector3(a+curand_uniform(&local_random_state), 0.2f, b+curand_uniform(&local_random_state));
-            if (mat_choice < 0.8f) {
-                material_list[material_list_index] = new Matte(Vector3(
-                curand_uniform(&local_random_state)*curand_uniform(&local_random_state),
-                curand_uniform(&local_random_state)*curand_uniform(&local_random_state),
-                curand_uniform(&local_random_state)*curand_uniform(&local_random_state)
-            ));
-            } else if (mat_choice < 0.95f) {
-                material_list[material_list_index] = new Metal(Vector3(
-                    0.5f*(1.0f+curand_uniform(&local_random_state)),
-                    0.5f*(1.0f+curand_uniform(&local_random_state)),
-                    0.5f*(1.0f+curand_uniform(&local_random_state))
-                    ), 0.5f*curand_uniform(&local_random_state));
-            } else {
-                material_list[material_list_index] = new Metal(Vector3(1.0f, 1.0f, 1.0f), 0.0f);
-            }
-            hittable_list[hittable_list_index] = new Sphere(center, 0.2f, material_list[material_list_index]);
-
-            material_list_index++;
-            hittable_list_index++;
-        }
-    }
-
-    material_list[material_list_index] = new Matte(Vector3(0.1f, 0.2f, 0.5f));                                   // środkowy
-    hittable_list[hittable_list_index] = new Sphere(Vector3(0.0f, 1.0f, 0.0f), 1.0f, material_list[material_list_index]);
-
-    material_list_index++;
-    hittable_list_index++;
-    material_list[material_list_index] = new Metal(Vector3(0.8f, 0.8f, 0.8f), 0.0f);                        // lewy
-    hittable_list[hittable_list_index] = new Sphere(Vector3(-4.0f, 1.0f, 0.0f), 1.0f, material_list[material_list_index]);
-
-    material_list_index++;
-    hittable_list_index++;
-    material_list[material_list_index] = new Metal(Vector3(0.8f, 0.6f, 0.2f), 0.0f);                        // prawy
-    hittable_list[hittable_list_index] = new Sphere(Vector3(4.0f, 1.0f, 0.0f), 1.0f, material_list[material_list_index]);
 
     *world = new HittableList(hittable_list, hittable_list_size);
 }
@@ -135,15 +85,205 @@ __global__ void gamma_2_correction(unsigned int width, unsigned int height, Vect
     buffer[pixel_index].z = sqrtf(buffer[pixel_index].z);
 }
 
+bool validate_json(const json& file) {
+    bool validate_success = true;
+    if (!file.contains("camera") || !file["camera"].is_object()) {
+        std::cerr << "Missing 'camera' field in file\n";
+        validate_success = false;
+    } else {
+        if (!file["camera"].contains("width") || !file["camera"]["width"].is_number()) {
+            std::cerr << "Missing 'width' property in .camera\n";
+            validate_success = false;
+        }
+        if (!file["camera"].contains("height") || !file["camera"]["height"].is_number()) {
+            std::cerr << "Missing 'height' property in .camera\n";
+            validate_success = false;
+        }
+        if (!file["camera"].contains("fov") || !file["camera"]["fov"].is_number()) {
+            std::cerr << "Missing 'fov' property in .camera\n";
+            validate_success = false;
+        }
+        if (!file["camera"].contains("lookFrom") || !file["camera"]["lookFrom"].is_array() || file["camera"]["lookFrom"].size() != 3) {
+            std::cerr << "Missing 'lookFrom' vector in .camera\n";
+            validate_success = false;
+        }
+        if (!file["camera"].contains("lookAt") || !file["camera"]["lookAt"].is_array() || file["camera"]["lookAt"].size() != 3) {
+            std::cerr << "Missing 'lookAt' vector in .camera\n";
+            validate_success = false;
+        }
+        if (!file["camera"].contains("sampleCount") || !file["camera"]["sampleCount"].is_number()) {
+            std::cerr << "Missing 'sampleCount' property in .camera\n";
+            validate_success = false;
+        }
+    }
 
-int main() {
-    int image_height = 720;
-    float aspect_ratio = 16.0 / 9.0;
-    int image_width =  aspect_ratio * image_height;
-    float field_of_view = 30; // pole widzenia wertykalne w kątach
-    Vector3 look_from = Vector3(13,2,3);
-    Vector3 look_at = Vector3(0,0,0);
-    int sample_count = 128;
+    size_t material_list_size = 0;
+
+    if (!file.contains("materials") || !file["materials"].is_array()) {
+        std::cerr << "Missing 'materials' array in file\n";
+        validate_success = false;
+    } else {
+        material_list_size = file["materials"].size();
+        for (const auto& mat : file["materials"]) {
+            if (!mat.is_object()) {
+                std::cerr << "Bad material type in material array\n";
+                validate_success = false;
+                continue;
+            }
+            if (!mat.contains("name") || !mat["name"].is_string()) {
+                std::cerr << "Missing 'name' in material entry\n";
+                validate_success = false;
+                continue;
+            }
+            if (!mat.contains("data") || !mat["data"].is_object()) {
+                std::cerr << "Missing 'data' in material entry\n";
+                validate_success = false;
+                continue;
+            }
+
+            if (mat["name"] == "matte") {
+                if (!mat["data"].contains("color") || !mat["data"]["color"].is_array() || mat["data"]["color"].size() != 3) {
+                    std::cerr << "Missing 'color' vector in matte material data\n";
+                    validate_success = false;
+                }
+            } else if (mat["name"] == "metal") {
+                if (!mat["data"].contains("color") || !mat["data"]["color"].is_array() || mat["data"]["color"].size() != 3) {
+                    std::cerr << "Missing 'color' vector in metal material data\n";
+                    validate_success = false;
+                }
+                if (!mat["data"].contains("roughness") || !mat["data"]["roughness"].is_number()) {
+                    std::cerr << "Missing 'roughness' in metal material data\n";
+                    validate_success = false;
+                }
+            } else {
+                std::cerr << "Unknown material: " << mat["name"] << std::endl;
+                validate_success = false;
+            }
+        }
+    }
+    if (!file.contains("hittables") || !file["hittables"].is_array()) {
+        std::cerr << "Missing 'hittables' array in file\n";
+        validate_success = false;
+    } else {
+        for (const auto& hittable : file["hittables"]) {
+            if (!hittable.is_object()) {
+                std::cerr << "Bad hittable type in hittable array\n";
+                validate_success = false;
+                continue;
+            }
+            if (!hittable.contains("name") || !hittable["name"].is_string()) {
+                std::cerr << "Missing 'name' in material entry\n";
+                validate_success = false;
+                continue;
+            }
+            if (!hittable.contains("data") || !hittable["data"].is_object()) {
+                std::cerr << "Missing 'data' in material entry\n";
+                validate_success = false;
+                continue;
+            }
+
+            if (!hittable["data"].contains("materialIndex") || !hittable["data"]["materialIndex"].is_number()) {
+                std::cerr << "Missing 'materialIndex' in hittable data\n";
+                validate_success = false;
+            } else {
+                size_t hittable_index = hittable["data"]["materialIndex"].get<size_t>();
+                if (hittable_index >= material_list_size) {
+                    std::cerr << "Material index out of range\n";
+                    validate_success = false;
+                }
+            }
+
+            if (hittable["name"] == "sphere") {
+                if (!hittable["data"].contains("center") || !hittable["data"]["center"].is_array() || hittable["data"]["center"].size() != 3) {
+                    std::cerr << "Missing 'center' vector in sphere hittable data\n";
+                    validate_success = false;
+                }
+                if (!hittable["data"].contains("radius") || !hittable["data"]["radius"].is_number()) {
+                    std::cerr << "Missing 'radius' in sphere hittable data\n";
+                    validate_success = false;
+                }
+            } else {
+                std::cerr << "Unknown hittable shape: " << hittable["name"] << std::endl;
+                validate_success = false;
+            }
+        }
+    }
+
+    return validate_success;
+}
+
+void load_materials(const json& file, Material**& d_material_list) {
+    size_t d_material_list_size = file["materials"].size();
+    cudaMalloc(&d_material_list, sizeof(Material*) * d_material_list_size);
+
+    size_t current_index = 0;
+    for (const auto& mat : file["materials"]) {
+        if (mat["name"] == "matte") {
+            const auto color = Vector3(mat["data"]["color"][0].get<float>(), mat["data"]["color"][1].get<float>(), mat["data"]["color"][2].get<float>());
+            create_matte<<<1,1>>>(color, d_material_list, current_index);
+            checkCudaErrors(cudaGetLastError());
+        } else if (mat["name"] == "metal") {
+            const auto color = Vector3(mat["data"]["color"][0].get<float>(), mat["data"]["color"][1].get<float>(), mat["data"]["color"][2].get<float>());
+            const float roughness = mat["data"]["roughness"].get<float>();
+            create_metal<<<1,1>>>(color, roughness, d_material_list, current_index);
+            checkCudaErrors(cudaGetLastError());
+        } else {
+            std::cerr << "Unknown material: " << mat["name"] << std::endl;
+            assert(false);
+        }
+        current_index++;
+    }
+    checkCudaErrors(cudaDeviceSynchronize());
+}
+
+int load_hittables(const json& file, Hittable**& d_hittable_list, Material**& d_material_list) {
+    size_t d_hittable_list_size = file["hittables"].size();
+    cudaMalloc(&d_hittable_list, sizeof(Hittable*) * d_hittable_list_size);
+
+    size_t current_index = 0;
+    for (const auto& hittable : file["hittables"]) {
+        if (hittable["name"] == "sphere") {
+            const auto center = Vector3(hittable["data"]["center"][0].get<float>(), hittable["data"]["center"][1].get<float>(), hittable["data"]["center"][2].get<float>());
+            const float radius = hittable["data"]["radius"].get<float>();
+            const int material_index = hittable["data"]["materialIndex"].get<int>();
+            create_sphere<<<1,1>>>(center, radius, material_index, d_material_list, d_hittable_list, current_index);
+            checkCudaErrors(cudaGetLastError());
+        } else {
+            std::cerr << "Unknown material: " << hittable["name"] << std::endl;
+            assert(false);
+        }
+        current_index++;
+    }
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    return d_hittable_list_size;
+}
+
+
+int main(int argc, char** argv) {
+    json json_file;
+
+    {
+        std::ifstream json_file_stream("config.json");
+        if (!json_file_stream.is_open()) {
+            std::cerr << "Nie można było otworzyć pliku konfiguracyjnego. Wychodzę.\n";
+            return 1;
+        }
+        json_file_stream >> json_file;
+    }
+
+    assert(validate_json(json_file));
+
+    auto camera_settings = json_file["camera"];
+
+    int image_width = camera_settings["width"];
+    int image_height = camera_settings["height"];
+    float aspect_ratio = (float)image_width / image_height;
+    // int image_width =  aspect_ratio * image_height;
+    float field_of_view = camera_settings["fov"]; // pole widzenia wertykalne w kątach
+    Vector3 look_from = Vector3(camera_settings["lookFrom"][0], camera_settings["lookFrom"][1], camera_settings["lookFrom"][2]);
+    Vector3 look_at = Vector3(camera_settings["lookAt"][0], camera_settings["lookAt"][1], camera_settings["lookAt"][2]);
+    int sample_count = camera_settings["sampleCount"];
 
     int buffer_size = image_height * image_width;
 
@@ -171,16 +311,17 @@ int main() {
     checkCudaErrors(cudaMalloc(&d_buffer, sizeof(Vector3) * buffer_size));
 
     // tworzenie świata
-    constexpr size_t hittable_list_size = 22*22+1+3;
-    Hittable** d_hitlist;
-    checkCudaErrors(cudaMalloc(&d_hitlist, sizeof(Hittable*) * hittable_list_size));
-    constexpr size_t material_list_size = 22*22+1+3;
     Material** d_material_list;
-    checkCudaErrors(cudaMalloc(&d_material_list, sizeof(Material*) * material_list_size));
+    load_materials(json_file, d_material_list);
+
+    Hittable** d_hitlist;
+    int hittable_list_size = load_hittables(json_file, d_hitlist, d_material_list);
+
     Hittable** d_world;
     checkCudaErrors(cudaMalloc(&d_world, sizeof(Hittable*)));
     checkCudaErrors(cudaDeviceSynchronize());
-    create_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
+    // create_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
+    create_world<<<1,1>>>(hittable_list_size, d_hitlist, d_world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 
@@ -191,11 +332,13 @@ int main() {
     checkCudaErrors(cudaMemcpy(d_cam, &camera, sizeof(Camera), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaDeviceSynchronize());
 
-
+    std::clog << "Renderowanie... \n";
+    auto render_begin = std::chrono::steady_clock::now();
     render<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_cam, d_buffer);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
-
+    auto render_end = std::chrono::steady_clock::now();
+    std::clog << "Wyrenderowano w " << std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_begin).count() / 1000.f << "s." << std::endl;
 
     gamma_2_correction<<<blocks_per_grid, threads_per_block>>>(image_width, image_height, d_buffer);
     checkCudaErrors(cudaGetLastError());
@@ -206,7 +349,7 @@ int main() {
     checkCudaErrors(cudaDeviceSynchronize());
 
     // zwolnienie pamięci GPU
-    destroy_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
+    destroy_world<<<1,1>>>(hittable_list_size, d_hitlist, 4, d_material_list, d_world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
 

@@ -4,12 +4,12 @@ __device__ Sphere::Sphere(const Vector3 &_center, float _radius, Material* _mate
     : center(_center), radius(_radius), material(_material) {}
 
 __device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &rec) const {
-    Vector3 oc = center - r.origin(); // co to jest?
+    Vector3 oc = this->center - r.origin(); // co to jest?
 
     float a = r.direction().dot(r.direction());
     // float b = -2.0f * ray.direction().dot(oc);
     float h = r.direction().dot(oc);
-    float c = oc.dot(oc) - radius * radius;
+    float c = oc.dot(oc) - this->radius * this->radius;
 
     // float discriminant = b*b - 4*a*c;
     float discriminant = h*h - a*c;
@@ -38,9 +38,13 @@ __device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &r
     // return !(root1_in_t || root2_in_t);
 
     rec.point = r.point_at(root);
-    rec.normal = (rec.point - center) / radius;
-    rec.material = material;
+    rec.normal = (rec.point - this->center) / this->radius;
+    rec.material = this->material;
     rec.t = root;
 
     return true;
+}
+
+__global__ void create_sphere(Vector3 center, float radius, int mat_index, Material** mat, Hittable** list, size_t index) {
+    list[index] = new Sphere(center, radius, mat[mat_index]);
 }
