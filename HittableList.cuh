@@ -8,7 +8,7 @@ public:
 
     __device__ HittableList(Hittable** l, const size_t n);
 
-    __device__ bool hit(const Ray &r, float t_min, float t_max, HitRecord &rec) const override;
+    __device__ bool hit(const Ray &r, Interval ray_t, HitRecord &rec) const override;
 
 private:
     Hittable** objects;

@@ -77,7 +77,7 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
 
     for (int i = 0; i < depth; i++) {
         HitRecord rec;
-        if ((*this->world)->hit(current_ray, 0.0005f, RTCuda::INF, rec)) {
+        if ((*this->world)->hit(current_ray, Interval(0.0005f, RTCuda::INF), rec)) {
             // Vector3 dir = Vector3::random_unit_vector(local_random_state) + rec.normal;
             // current_attenuation *= 0.5f;
             // current_ray = Ray(rec.point, dir);

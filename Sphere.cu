@@ -3,8 +3,8 @@
 __device__ Sphere::Sphere(const Vector3 &_center, float _radius, Material* _material)
     : center(_center), radius(_radius), material(_material) {}
 
-__device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &rec) const {
-    Vector3 oc = this->center - r.origin(); // co to jest?
+__device__ bool Sphere::hit(const Ray &r, Interval ray_t, HitRecord &rec) const {
+    Vector3 oc = this->center - r.origin(); // wektor od źródła promienia do środka kuli
 
     float a = r.direction().dot(r.direction());
     // float b = -2.0f * ray.direction().dot(oc);
@@ -21,21 +21,12 @@ __device__ bool Sphere::hit(const Ray &r, float t_min, float t_max, HitRecord &r
     float sqrtd = sqrtf(discriminant);
 
     float root;
-    root = (h - sqrtd) / a;
-    if (root <= t_min || root >= t_max) {
-        root = (h + sqrtd) / a;
-        if (root <= t_min || root >= t_max) {
-            return false;
-        }
+    if (
+        !ray_t.contains( (root = (h - sqrtd) / a) ) &&
+        !ray_t.contains( (root = (h + sqrtd) / a) )
+    ) {
+        return false;
     }
-
-    // float root1 = (h - sqrtd) / a;
-    // float root2 = (h + sqrtd) / a;
-    //
-    // bool root1_in_t = root1 > t_min && root1 < t_max;
-    // bool root2_in_t = root2 > t_min && root2 < t_max;
-    //
-    // return !(root1_in_t || root2_in_t);
 
     rec.point = r.point_at(root);
     rec.normal = (rec.point - this->center) / this->radius;
