@@ -261,16 +261,23 @@ int load_hittables(const json& file, Hittable**& d_hittable_list, Material**& d_
 
 
 int main(int argc, char** argv) {
+    std::string config_file_path;
+    if (argc < 2) {
+        config_file_path = "./config.json";
+    } else {
+        config_file_path = argv[1];
+    }
+    std::cerr << "Plik konfiguracyjny: " << config_file_path << "\n";
     json json_file;
 
-    {
-        std::ifstream json_file_stream("config.json");
-        if (!json_file_stream.is_open()) {
-            std::cerr << "Nie można było otworzyć pliku konfiguracyjnego. Wychodzę.\n";
-            return 1;
-        }
-        json_file_stream >> json_file;
+    std::ifstream json_file_stream(config_file_path);
+    if (!json_file_stream.is_open()) {
+        std::cerr << "Nie można było otworzyć pliku konfiguracyjnego. Wychodzę.\n";
+        json_file_stream.close();
+        return 1;
     }
+    json_file_stream >> json_file;
+    json_file_stream.close();
 
     assert(validate_json(json_file));
 
