@@ -6,6 +6,7 @@
 #include <curand_kernel.h>
 
 #include "json.hpp"
+#include "Quad.cuh"
 using json = nlohmann::json;
 
 #include "Camera.cuh"
@@ -172,7 +173,7 @@ bool validate_json(const json& file) {
                 continue;
             }
             if (!hittable.contains("name") || !hittable["name"].is_string()) {
-                std::cerr << "Missing 'name' in material entry\n";
+                std::cerr << "Missing 'name' in hittable entry\n";
                 validate_success = false;
                 continue;
             }
@@ -200,6 +201,19 @@ bool validate_json(const json& file) {
                 }
                 if (!hittable["data"].contains("radius") || !hittable["data"]["radius"].is_number()) {
                     std::cerr << "Missing 'radius' in sphere hittable data\n";
+                    validate_success = false;
+                }
+            } else if (hittable["name"] == "quad") {
+                if (!hittable["data"].contains("q") || !hittable["data"]["q"].is_array() || hittable["data"]["q"].size() != 3) {
+                    std::cerr << "Missing 'q' vector in quad hittable data\n";
+                    validate_success = false;
+                }
+                if (!hittable["data"].contains("u") || !hittable["data"]["u"].is_array() || hittable["data"]["u"].size() != 3) {
+                    std::cerr << "Missing 'u' vector in quad hittable data\n";
+                    validate_success = false;
+                }
+                if (!hittable["data"].contains("v") || !hittable["data"]["v"].is_array() || hittable["data"]["v"].size() != 3) {
+                    std::cerr << "Missing 'v' vector in quad hittable data\n";
                     validate_success = false;
                 }
             } else {
@@ -248,6 +262,12 @@ int load_hittables(const json& file, Hittable**& d_hittable_list, Material**& d_
             const int material_index = hittable["data"]["materialIndex"].get<int>();
             create_sphere<<<1,1>>>(center, radius, material_index, d_material_list, d_hittable_list, current_index);
             checkCudaErrors(cudaGetLastError());
+        } else if (hittable["name"] == "quad") {
+            const auto Q = Vector3(hittable["data"]["q"][0].get<float>(), hittable["data"]["q"][1].get<float>(), hittable["data"]["q"][2].get<float>());
+            const auto u = Vector3(hittable["data"]["u"][0].get<float>(), hittable["data"]["u"][1].get<float>(), hittable["data"]["u"][2].get<float>());
+            const auto v = Vector3(hittable["data"]["v"][0].get<float>(), hittable["data"]["v"][1].get<float>(), hittable["data"]["v"][2].get<float>());
+            const int material_index = hittable["data"]["materialIndex"].get<int>();
+            create_quad<<<1,1>>>(Q, u, v, material_index, d_material_list, d_hittable_list, current_index);
         } else {
             std::cerr << "Unknown material: " << hittable["name"] << std::endl;
             assert(false);

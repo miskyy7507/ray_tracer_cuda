@@ -24,7 +24,9 @@ add_executable(ray_tracer_cuda main.cu
         Metal.cu
         Metal.cuh
         Interval.cu
-        Interval.cuh)
+        Interval.cuh
+        Quad.cu
+        Quad.cuh)
 
 set_target_properties(ray_tracer_cuda PROPERTIES
                       CUDA_SEPARABLE_COMPILATION ON)
