@@ -1,3 +1,8 @@
+/**
+ * @file Vector3.cu
+ * @brief Implementacja klasy Vector3.
+ */
+
 #include "Vector3.cuh"
 #include <cmath>
 #include <curand_kernel.h>

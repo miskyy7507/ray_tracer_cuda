@@ -1,3 +1,8 @@
+/**
+ * @file HittableList.cu
+ * @brief Implementacja klasy HittableList.
+ */
+
 #include "HittableList.cuh"
 
 __device__ HittableList::HittableList(Hittable **l, const size_t n): objects(l), length(n) {}

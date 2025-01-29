@@ -1,5 +1,8 @@
+/**
+ * @file Camera.cu
+ * @brief Implementacja klasy Camera.
+ */
 #include "Camera.cuh"
-
 #include "Material.cuh"
 #include "rtcuda.h"
 

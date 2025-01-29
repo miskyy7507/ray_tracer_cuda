@@ -79,3 +79,5 @@ fabric.properties
 fp_profile
 *.bmp
 *.ppm
+
+doxygen_html/

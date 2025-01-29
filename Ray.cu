@@ -1,6 +1,11 @@
+/**
+ * @file Ray.cu
+ * @brief Implementacja klasy Ray.
+ */
+
 #include "Ray.cuh"
 
-__device__ Ray::Ray() : orig(Vector3()), dir(Vector3()) {} // todo: see if without initializer list is faster
+__device__ Ray::Ray() : orig(Vector3()), dir(Vector3()) {}
 
 __device__ Ray::Ray(const Vector3 &_orig, const Vector3 &_dir) : orig(_orig), dir(_dir) {}
 

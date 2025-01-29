@@ -1,3 +1,8 @@
+/**
+ * @file Quad.cu
+ * @brief Implementacja klasy Quad.
+ */
+
 #include "Quad.cuh"
 
 __device__ Quad::Quad(const Vector3 &Q, const Vector3 &_u, const Vector3 &_v, Material *_material)
@@ -15,12 +20,15 @@ __device__  bool Quad::hit(const Ray &r, Interval ray_t, HitRecord &rec) const {
         return false;
     }
 
+    // Obliczamy t kiedy promień trafił na płaszczyznę.
     float t = (D - normal.dot(r.origin())) / denom;
     if (!ray_t.contains(t)) {
         return false;
     }
 
-    auto intersection = r.point_at(t);
+    auto intersection = r.point_at(t); // punkt przecięcia się promienia z płaszczyzną
+
+    // W tym momencie wiemy że promień dotknął płaszczyznę na której jest zdefiniowany równoległobok.
     Vector3 planar_hitpoint = intersection - Q;
     float alpha = w.dot(planar_hitpoint.cross(v));
     float beta  = w.dot(u.cross(planar_hitpoint));

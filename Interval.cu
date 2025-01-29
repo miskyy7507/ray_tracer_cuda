@@ -1,5 +1,5 @@
 /**
-* @file Interval.cu
+ * @file Interval.cu
  * @brief Implementacja klasy Interval.
  */
 

@@ -4,17 +4,14 @@
 #include <chrono>
 #include <fstream>
 #include <curand_kernel.h>
-
 #include "json.hpp"
-#include "Quad.cuh"
 using json = nlohmann::json;
-
 #include "Camera.cuh"
 #include "Vector3.cuh"
-#include "Ray.cuh"
 #include "export_framebuffer_to_bitmap.h"
 #include "Hittable.cuh"
 #include "HittableList.cuh"
+#include "Quad.cuh"
 #include "Matte.cuh"
 #include "Metal.cuh"
 #include "Light.cuh"
@@ -31,6 +28,21 @@ void cuda_err_chk(cudaError_t code, const char* const func, const char* const fi
     }
 }
 
+/**
+ * @brief Kernel do inicjalizacji stanu generatora liczb losowych.
+ *
+ * Funkcja ta inicjalizuje stan generatora liczb losowych dla każdego
+ * piksela w obrazie o zadanej szerokości i wysokości. Używa
+ * biblioteki CURAND do generowania losowych liczb.
+ *
+ * @param width Szerokość obrazu.
+ * @param height Wysokość obrazu.
+ * @param rand_state Wskaźnik do tablicy stanów generatora liczb losowych.
+ *
+ * Kernel jest uruchamiany równolegle, a każdy wątek odpowiada
+ * za jeden piksel w obrazie. Indeks piksela jest obliczany na
+ * podstawie pozycji wątku w siatce.
+ */
 __global__ void random_state_init(int width, int height, curandState* rand_state) {
     unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
     unsigned int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -40,6 +52,21 @@ __global__ void random_state_init(int width, int height, curandState* rand_state
     curand_init(1+pixel_index, 0, 0, &rand_state[pixel_index]);
 }
 
+/**
+ * @brief Kernel do tworzenia świata z listy obiektów Hittable.
+ *
+ * Funkcja ta tworzy obiekt HittableList, który przechowuje wskaźniki
+ * do obiektów Hittable. Jest to użyteczne w kontekście ray tracingu,
+ * gdzie wiele obiektów musi być zarządzanych jako jedna lista.
+ *
+ * Funkcja jest uruchamiana tylko przez jeden wątek (wątek o indeksie
+ * (0, 0)), aby uniknąć wielokrotnego tworzenia obiektu HittableList.
+ *
+ * @param hittable_list_size Liczba obiektów Hittable w liście.
+ * @param hittable_list Wskaźnik do tablicy wskaźników do obiektów Hittable.
+ * @param world Wskaźnik do wskaźnika, w którym zostanie zapisany
+ *               wskaźnik do nowo utworzonego obiektu HittableList.
+ */
 __global__ void create_world(
     const size_t hittable_list_size,
     Hittable** hittable_list,
@@ -50,6 +77,24 @@ __global__ void create_world(
     *world = new HittableList(hittable_list, hittable_list_size);
 }
 
+/**
+ * @brief Kernel do usuwania świata z pamięci GPU.
+ *
+ * Funkcja ta zapewnia prawidłowe zwolnienie pamięci na GPU, usuwając
+ * wszystkie obiekty Hittable oraz materiały, które zostały wcześniej
+ * utworzone. Jest to ważne dla zarządzania pamięcią i unikania
+ * wycieków pamięci w aplikacjach wykorzystujących GPU.
+ *
+ * Funkcja jest uruchamiana tylko przez jeden wątek (wątek o indeksie
+ * (0, 0)), aby uniknąć wielokrotnego usuwania tych samych obiektów.
+ *
+ * @param hittable_list_size Liczba obiektów Hittable w liście do usunięcia.
+ * @param hittable_list Wskaźnik do tablicy wskaźników do obiektów Hittable.
+ * @param material_list_size Liczba materiałów w liście do usunięcia.
+ * @param material_list Wskaźnik do tablicy wskaźników do materiałów.
+ * @param world Wskaźnik do wskaźnika, który wskazuje na obiekt HittableList
+ *               do usunięcia.
+ */
 __global__ void destroy_world(
     const size_t hittable_list_size,
     Hittable** hittable_list,
@@ -87,6 +132,17 @@ __global__ void gamma_2_correction(unsigned int width, unsigned int height, Vect
     buffer[pixel_index].z = sqrtf(buffer[pixel_index].z > 1.0f ? 1.0f : buffer[pixel_index].z);
 }
 
+/**
+ * @brief Walidacja pliku JSON.
+ *
+ * Funkcja ta sprawdza, czy podany plik JSON jest poprawny
+ * pod względem składniowym. Zwraca wartość true, jeśli walidacja
+ * przebiegła pomyślnie, w przeciwnym razie zwraca false.
+ *
+ * @param file Obiekt typu json, który reprezentuje plik JSON do walidacji.
+ * @return true Jeśli walidacja pliku JSON przebiegła pomyślnie.
+ * @return false Jeśli plik JSON jest niepoprawny lub zawiera błędy.
+ */
 bool validate_json(const json& file) {
     bool validate_success = true;
     if (!file.contains("camera") || !file["camera"].is_object()) {
@@ -232,6 +288,20 @@ bool validate_json(const json& file) {
     return validate_success;
 }
 
+/**
+ * @brief Ładowanie materiałów z pliku JSON do pamięci GPU.
+ *
+ * Funkcja alokuje pamięć na liście materiałów w pamięci GPU, a następnie
+ * iteruje przez każdy materiał w pliku JSON, tworząc odpowiednie obiekty
+ * materiałów na GPU. Po zakończeniu ładowania, synchronizuje urządzenie
+ * GPU, aby upewnić się, że wszystkie operacje zostały zakończone.
+ *
+ * @param file Obiekt typu json, który reprezentuje plik JSON zawierający
+ *              definicje materiałów.
+ * @param d_material_list Pusty wskaźnik, który będzie wskazywał
+ *                        na tablicę wskaźników do obiektów materiałów
+ *                        w pamięci GPU.
+ */
 void load_materials(const json& file, Material**& d_material_list) {
     size_t d_material_list_size = file["materials"].size();
     cudaMalloc(&d_material_list, sizeof(Material*) * d_material_list_size);
@@ -260,6 +330,17 @@ void load_materials(const json& file, Material**& d_material_list) {
     checkCudaErrors(cudaDeviceSynchronize());
 }
 
+/**
+ * @brief Ładowanie obiektów z pliku JSON do pamięci GPU.
+ *
+ * Funkcja alokuje pamięć na liście obiektów w pamięci GPU, a następnie
+ * iteruje przez każdy obiekt w pliku JSON, tworząc odpowiednie obiekty na GPU.
+ *
+ * @param file Plik JSON zawierający definicje materiałów.
+ * @param d_material_list Pusty wskaźnik, który będzie wskazywał
+ *                        na tablicę wskaźników do obiektów w pamięci GPU.
+ * @return Rozmiar tablicy d_material_list.
+ */
 int load_hittables(const json& file, Hittable**& d_hittable_list, Material**& d_material_list) {
     size_t d_hittable_list_size = file["hittables"].size();
     cudaMalloc(&d_hittable_list, sizeof(Hittable*) * d_hittable_list_size);
