@@ -40,6 +40,7 @@ public:
         int _sample_count,
         Vector3 look_from,
         Vector3 look_at,
+        Vector3 _background_color,
         Hittable** _world,
         curandState* _curand_state
     );
@@ -73,6 +74,7 @@ private:
     Vector3 camera_center;                         ///< Położenie środka kamery.
     Vector3 pixel_delta_x, pixel_delta_y;          ///< Wektory o długości przestrzeni między środkami pikseli kamery.
     Vector3 viewport_upper_left_pixel_center;      ///< Położenie środka lewego górnego piksela.
+    Vector3 background_color;                      ///< Kolor tła (nieba).
     Hittable** world;                              ///< Wskaźnik do tablicy obiektów w scenie.
     curandState* curand_state;                     ///< Wskaźnik do stanu generatora liczb losowych.
 };

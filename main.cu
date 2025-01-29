@@ -169,6 +169,10 @@ bool validate_json(const json& file) {
             std::cerr << "Missing 'lookAt' vector in .camera\n";
             validate_success = false;
         }
+        if (!file["camera"].contains("backgroundColor") || !file["camera"]["backgroundColor"].is_array() || file["camera"]["backgroundColor"].size() != 3) {
+            std::cerr << "Missing 'backgroundColor' vector in .camera\n";
+            validate_success = false;
+        }
         if (!file["camera"].contains("sampleCount") || !file["camera"]["sampleCount"].is_number()) {
             std::cerr << "Missing 'sampleCount' property in .camera\n";
             validate_success = false;
@@ -372,12 +376,15 @@ int load_hittables(const json& file, Hittable**& d_hittable_list, Material**& d_
 
 
 int main(int argc, char** argv) {
-    std::string config_file_path;
-    if (argc < 2) {
-        config_file_path = "./config.json";
-    } else {
-        config_file_path = argv[1];
+    if (argc != 3) {
+        std::cout << "Użycie: " << argv[0] << " <plik_konfiguracyjny> <plik_wyjściowy>" << std::endl;
+        exit(1);
     }
+
+    std::string config_file_path = argv[1];
+    std::string output_file_path = argv[2];
+
+
     std::cerr << "Plik konfiguracyjny: " << config_file_path << "\n";
     json json_file;
 
@@ -390,17 +397,20 @@ int main(int argc, char** argv) {
     json_file_stream >> json_file;
     json_file_stream.close();
 
-    assert(validate_json(json_file));
+    if (!validate_json(json_file)) {
+        std::cout << "Błąd walidacji pliku konfiguracyjnego. Wychodzę.\n";
+        return 1;
+    }
 
     auto camera_settings = json_file["camera"];
 
     int image_width = camera_settings["width"];
     int image_height = camera_settings["height"];
     float aspect_ratio = (float)image_width / image_height;
-    // int image_width =  aspect_ratio * image_height;
     float field_of_view = camera_settings["fov"]; // pole widzenia wertykalne w kątach
     Vector3 look_from = Vector3(camera_settings["lookFrom"][0], camera_settings["lookFrom"][1], camera_settings["lookFrom"][2]);
     Vector3 look_at = Vector3(camera_settings["lookAt"][0], camera_settings["lookAt"][1], camera_settings["lookAt"][2]);
+    Vector3 background_color = Vector3(camera_settings["backgroundColor"][0], camera_settings["backgroundColor"][1], camera_settings["backgroundColor"][2]);
     int sample_count = camera_settings["sampleCount"];
 
     int buffer_size = image_height * image_width;
@@ -438,7 +448,6 @@ int main(int argc, char** argv) {
     Hittable** d_world;
     checkCudaErrors(cudaMalloc(&d_world, sizeof(Hittable*)));
     checkCudaErrors(cudaDeviceSynchronize());
-    // create_world<<<1,1>>>(hittable_list_size, d_hitlist, material_list_size, d_material_list, d_world);
     create_world<<<1,1>>>(hittable_list_size, d_hitlist, d_world);
     checkCudaErrors(cudaGetLastError());
     checkCudaErrors(cudaDeviceSynchronize());
@@ -446,7 +455,7 @@ int main(int argc, char** argv) {
     // tworzenie kamery
     Camera* d_cam;
     checkCudaErrors(cudaMalloc(&d_cam, sizeof(Camera)));
-    auto camera = Camera(image_height, aspect_ratio, field_of_view, sample_count, look_from, look_at, d_world, d_random_state);
+    auto camera = Camera(image_height, aspect_ratio, field_of_view, sample_count, look_from, look_at,background_color, d_world, d_random_state);
     checkCudaErrors(cudaMemcpy(d_cam, &camera, sizeof(Camera), cudaMemcpyHostToDevice));
     checkCudaErrors(cudaDeviceSynchronize());
 
@@ -478,7 +487,7 @@ int main(int argc, char** argv) {
     checkCudaErrors(cudaFree(d_world));
     checkCudaErrors(cudaFree(d_random_state));
 
-    export_framebuffer_to_bitmap(fb_host, image_width, image_height, "image.bmp");
+    export_framebuffer_to_bitmap(fb_host, image_width, image_height, output_file_path.c_str());
 
     return 0;
 }

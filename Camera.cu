@@ -13,15 +13,15 @@ __host__ __device__ Camera::Camera(
     int _sample_count,
     Vector3 look_from,
     Vector3 look_at,
+    Vector3 _background_color,
     Hittable** _world,
     curandState* _curand_state
-) : image_height(_image_height), sample_count(_sample_count), aspect_ratio(_aspect_ratio), world(_world), curand_state(_curand_state)
+) : image_height(_image_height), sample_count(_sample_count), aspect_ratio(_aspect_ratio), background_color(_background_color), world(_world), curand_state(_curand_state)
 {
     this->image_width = aspect_ratio * image_height;
 
     float vfov_rad = _vfov_deg * (RTCuda::PI / 180);
 
-    // float focal_length = 1.0f;
     float focal_length = (look_from - look_at).length();
     float h = tanf(vfov_rad/2);
     float viewport_height = 2.0f * h * focal_length;
@@ -35,9 +35,7 @@ __host__ __device__ Camera::Camera(
     Vector3 v = w.cross(u).normalized();
 
     // wektory przebiegające wzdłuż szerokości i wysokości viewportu
-    // auto viewport_x = Vector3(viewport_width, 0.0f, 0.0f);
     auto viewport_x = u * viewport_width;
-    // auto viewport_y = Vector3(0.0f, -viewport_height, 0.0f);
     auto viewport_y = -v * viewport_height;
 
     this->pixel_delta_x = viewport_x / image_width;
@@ -80,9 +78,6 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
     for (int i = 0; i < depth; i++) {
         HitRecord rec;
         if ((*this->world)->hit(current_ray, Interval(0.0005f, RTCuda::INF), rec)) {
-            // Vector3 dir = Vector3::random_unit_vector(local_random_state) + rec.normal;
-            // current_attenuation *= 0.5f;
-            // current_ray = Ray(rec.point, dir);
             accumulated_color = accumulated_color + rec.material->emitted_color() * current_attenuation;
             Ray scattered;
             Vector3 attenuate;
@@ -95,11 +90,7 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
 
 
         } else {
-            // auto unit_dir = current_ray.direction().normalized();
-            // float a = 0.5f * (unit_dir.y + 1.0f);
-            // Vector3 c = (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
-            Vector3 c = Vector3(0.0f, 0.0f, 0.0f);
-            return c * current_attenuation;
+            return this->background_color * current_attenuation;
         }
     }
 
