@@ -17,6 +17,7 @@ using json = nlohmann::json;
 #include "HittableList.cuh"
 #include "Matte.cuh"
 #include "Metal.cuh"
+#include "Light.cuh"
 #include "Sphere.cuh"
 
 
@@ -81,9 +82,9 @@ __global__ void gamma_2_correction(unsigned int width, unsigned int height, Vect
 
     unsigned int pixel_index = x + y * width;
 
-    buffer[pixel_index].x = sqrtf(buffer[pixel_index].x);
-    buffer[pixel_index].y = sqrtf(buffer[pixel_index].y);
-    buffer[pixel_index].z = sqrtf(buffer[pixel_index].z);
+    buffer[pixel_index].x = sqrtf(buffer[pixel_index].x > 1.0f ? 1.0f : buffer[pixel_index].x);
+    buffer[pixel_index].y = sqrtf(buffer[pixel_index].y > 1.0f ? 1.0f : buffer[pixel_index].y);
+    buffer[pixel_index].z = sqrtf(buffer[pixel_index].z > 1.0f ? 1.0f : buffer[pixel_index].z);
 }
 
 bool validate_json(const json& file) {
@@ -154,6 +155,11 @@ bool validate_json(const json& file) {
                 }
                 if (!mat["data"].contains("roughness") || !mat["data"]["roughness"].is_number()) {
                     std::cerr << "Missing 'roughness' in metal material data\n";
+                    validate_success = false;
+                }
+            } else if (mat["name"] == "light") {
+                if (!mat["data"].contains("color") || !mat["data"]["color"].is_array() || mat["data"]["color"].size() != 3) {
+                    std::cerr << "Missing 'color' vector in light material data\n";
                     validate_success = false;
                 }
             } else {
@@ -240,6 +246,10 @@ void load_materials(const json& file, Material**& d_material_list) {
             const auto color = Vector3(mat["data"]["color"][0].get<float>(), mat["data"]["color"][1].get<float>(), mat["data"]["color"][2].get<float>());
             const float roughness = mat["data"]["roughness"].get<float>();
             create_metal<<<1,1>>>(color, roughness, d_material_list, current_index);
+            checkCudaErrors(cudaGetLastError());
+        } else if (mat["name"] == "light") {
+            const auto color = Vector3(mat["data"]["color"][0].get<float>(), mat["data"]["color"][1].get<float>(), mat["data"]["color"][2].get<float>());
+            create_light<<<1,1>>>(color, d_material_list, current_index);
             checkCudaErrors(cudaGetLastError());
         } else {
             std::cerr << "Unknown material: " << mat["name"] << std::endl;

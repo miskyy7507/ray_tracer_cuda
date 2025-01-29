@@ -23,8 +23,6 @@ __host__ __device__ Camera::Camera(
     float h = tanf(vfov_rad/2);
     float viewport_height = 2.0f * h * focal_length;
     float viewport_width = viewport_height * image_width / image_height;
-    // this->camera_center = Vector3(); // 0,0,0
-    // this->camera_center = Vector3(13,2,3);
     this->camera_center = look_from;
 
     Vector3 vup = Vector3(0.0f, 1.0f, 0.0f);
@@ -74,6 +72,7 @@ __device__ Vector3 Camera::render_pixel(int x, int y) {
 __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* local_random_state) {
     Ray current_ray = r;
     Vector3 current_attenuation = Vector3(1.0f, 1.0f, 1.0f);
+    Vector3 accumulated_color = Vector3(0.0f, 0.0f, 0.0f);
 
     for (int i = 0; i < depth; i++) {
         HitRecord rec;
@@ -81,20 +80,22 @@ __device__ Vector3 Camera::get_ray_color(const Ray& r, int depth, curandState* l
             // Vector3 dir = Vector3::random_unit_vector(local_random_state) + rec.normal;
             // current_attenuation *= 0.5f;
             // current_ray = Ray(rec.point, dir);
+            accumulated_color = accumulated_color + rec.material->emitted_color() * current_attenuation;
             Ray scattered;
             Vector3 attenuate;
             if (rec.material->scatter(current_ray, rec, attenuate, scattered, local_random_state)) {
                 current_attenuation = current_attenuation * attenuate;
                 current_ray = scattered;
             } else {
-                return Vector3(0.0f, 0.0f, 0.0f);
+                return accumulated_color;
             }
 
 
         } else {
-            auto unit_dir = current_ray.direction().normalized();
-            float a = 0.5f * (unit_dir.y + 1.0f);
-            Vector3 c = (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
+            // auto unit_dir = current_ray.direction().normalized();
+            // float a = 0.5f * (unit_dir.y + 1.0f);
+            // Vector3 c = (Vector3(1.0f, 1.0f, 1.0f) * (1.0f-a) + Vector3(0.5f, 0.7f, 1.0f) * a);
+            Vector3 c = Vector3(0.0f, 0.0f, 0.0f);
             return c * current_attenuation;
         }
     }

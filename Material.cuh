@@ -16,6 +16,10 @@ public:
     ) const {
         return false;
     }
+
+    __device__ virtual Vector3 emitted_color() const {
+        return Vector3(0.0f, 0.0f, 0.0f);
+    }
 };
 
 #endif //MATERIAL_CUH
